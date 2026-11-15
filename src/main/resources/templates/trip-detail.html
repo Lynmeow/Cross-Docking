@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head('Chi tiết chuyến')}"></head>
+<body>
+<nav th:replace="~{fragments/layout :: nav(${trip.outbound} ? 'outbound' : 'inbound')}"></nav>
+<main class="container-fluid px-4 pb-5" th:with="canOp=${trip.outbound ? canOutbound : canInbound}">
+    <div th:replace="~{fragments/layout :: alerts}"></div>
+
+    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+        <h4 class="mb-0">Chuyến <span th:text="${trip.code}"></span>
+            <span class="badge text-bg-light border" th:text="${trip.direction.label}"></span>
+            <span class="badge" th:classappend="${@ui.badge(trip.status)}" th:text="${trip.status.label}"></span></h4>
+        <div class="d-flex gap-2">
+            <a th:if="${!trip.outbound and canInbound}" class="btn btn-sm btn-outline-primary"
+               th:href="@{/labels(mode='inbound', tripId=${trip.id})}"><i class="bi bi-upc-scan"></i> In tem pallet</a>
+            <a class="btn btn-sm btn-outline-dark" target="_blank" th:href="@{/trips/{id}/print(id=${trip.id})}">
+                <i class="bi bi-printer"></i> <span th:text="${trip.outbound} ? 'In biên bản giao hàng' : 'In biên bản nhận hàng'"></span></a>
+        </div>
+    </div>
+
+    <div class="row g-4">
+        <!-- ===== Cột trái: thông tin & thao tác xe ===== -->
+        <div class="col-lg-4">
+            <div class="card shadow-sm mb-4">
+                <div class="card-header">Thông tin chuyến</div>
+                <div class="card-body">
+                    <dl class="row mb-0 small">
+                        <dt class="col-5">Xe</dt><dd class="col-7" th:text="${trip.truckPlate}"></dd>
+                        <dt class="col-5">Nhà vận chuyển</dt><dd class="col-7" th:text="${trip.carrier}"></dd>
+                        <dt class="col-5">Tài xế</dt><dd class="col-7" th:text="${trip.driverName} ?: '—'"></dd>
+                        <dt class="col-5">Cửa</dt><dd class="col-7" th:text="|${trip.dock.code} (${trip.dock.status.label})|"></dd>
+                        <dt class="col-5">Lịch đến / rời</dt><dd class="col-7" th:text="|${@ui.dt(trip.scheduledArrival)} → ${@ui.dt(trip.scheduledDeparture)}|"></dd>
+                        <dt class="col-5">Thực tế đến</dt><dd class="col-7"><span th:text="${@ui.dt(trip.actualArrival)}"></span> <span class="badge text-bg-danger" th:if="${trip.lateArrival}">Trễ</span></dd>
+                        <dt class="col-5">Thực tế rời</dt><dd class="col-7" th:text="${@ui.dt(trip.actualDeparture)}"></dd>
+                        <dt class="col-5" th:text="${trip.outbound} ? 'Điểm đến' : 'Nơi đi'"></dt><dd class="col-7" th:text="${trip.destination}"></dd>
+                        <dt class="col-5">Pallet / sức chứa</dt><dd class="col-7" th:text="|${#lists.size(pallets)} / ${trip.capacity}|"></dd>
+                        <dt class="col-5" th:if="${trip.sealNumber}">Số seal</dt><dd class="col-7 fw-semibold" th:if="${trip.sealNumber}" th:text="${trip.sealNumber}"></dd>
+                    </dl>
+                </div>
+                <div class="card-footer bg-white d-grid gap-2">
+                    <form th:if="${canOp and trip.status.name() == 'SCHEDULED'}" th:action="@{/trips/{id}/arrive(id=${trip.id})}" method="post">
+                        <button class="btn btn-success w-100"><i class="bi bi-box-arrow-in-right"></i> Xác nhận xe vào cửa</button>
+                    </form>
+                    <form th:if="${canOp and trip.status.name() == 'AT_DOCK'}" th:action="@{/trips/{id}/depart(id=${trip.id})}" method="post">
+                        <div class="input-group">
+                            <input th:if="${trip.outbound}" name="sealNumber" class="form-control" placeholder="Số seal niêm phong" required>
+                            <button class="btn btn-warning"><i class="bi bi-box-arrow-right"></i> Xe rời kho</button>
+                        </div>
+                    </form>
+                    <form th:if="${isManager and trip.status.name() == 'SCHEDULED'}" th:action="@{/trips/{id}/cancel(id=${trip.id})}" method="post"
+                          onsubmit="return confirm('Hủy chuyến này?')">
+                        <div class="input-group input-group-sm">
+                            <input name="reason" class="form-control" placeholder="Lý do hủy" required>
+                            <button class="btn btn-outline-danger">Hủy chuyến</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Quản lý sửa lịch -->
+            <div class="card shadow-sm mb-4" th:if="${isManager and trip.status.name() == 'SCHEDULED'}">
+                <div class="card-header">Sửa lịch chuyến (ghi nhật ký cũ → mới)</div>
+                <div class="card-body">
+                    <form th:action="@{/trips/{id}/edit(id=${trip.id})}" method="post" class="row g-2">
+                        <div class="col-6"><input name="truckPlate" class="form-control form-control-sm" th:value="${trip.truckPlate}" required></div>
+                        <div class="col-6"><input name="carrier" class="form-control form-control-sm" th:value="${trip.carrier}" required></div>
+                        <div class="col-6"><input name="driverName" class="form-control form-control-sm" th:value="${trip.driverName}" placeholder="Tài xế"></div>
+                        <div class="col-6">
+                            <select name="dockId" class="form-select form-select-sm">
+                                <option th:each="d : ${docks}" th:if="${d.type == trip.direction}" th:value="${d.id}"
+                                        th:text="${d.code}" th:selected="${d.id == trip.dock.id}"></option>
+                            </select>
+                        </div>
+                        <div class="col-6"><input type="datetime-local" name="arrival" class="form-control form-control-sm" th:value="${@ui.dtInput(trip.scheduledArrival)}" required></div>
+                        <div class="col-6"><input type="datetime-local" name="departure" class="form-control form-control-sm" th:value="${@ui.dtInput(trip.scheduledDeparture)}" required></div>
+                        <div class="col-8"><input name="destination" class="form-control form-control-sm" th:value="${trip.destination}"></div>
+                        <div class="col-4"><input type="number" name="capacity" min="1" class="form-control form-control-sm" th:value="${trip.capacity}"></div>
+                        <div class="col-12"><button class="btn btn-sm btn-primary w-100">Lưu lịch</button></div>
+                    </form>
+                </div>
+            </div>
+
+            <div class="card shadow-sm" th:if="${not #lists.isEmpty(incidents)}">
+                <div class="card-header text-danger">Ngoại lệ của chuyến</div>
+                <ul class="list-group list-group-flush small">
+                    <li class="list-group-item" th:each="i : ${incidents}">
+                        <span class="badge" th:classappend="${@ui.badge(i.status)}" th:text="${i.status.label}"></span>
+                        <b th:text="${i.type.label}"></b> – <span th:text="${i.description}"></span>
+                    </li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- ===== Cột phải ===== -->
+        <div class="col-lg-8">
+
+            <!-- ================= CHUYẾN NHẬP ================= -->
+            <th:block th:if="${!trip.outbound}">
+                <div class="card shadow-sm mb-4" th:if="${asn == null and isManager and (trip.status.name() == 'SCHEDULED' or trip.status.name() == 'AT_DOCK')}">
+                    <div class="card-header">Tạo ASN (phiếu báo hàng sắp đến)</div>
+                    <div class="card-body">
+                        <form th:action="@{/trips/{id}/asn(id=${trip.id})}" method="post">
+                            <div class="row g-2 mb-2">
+                                <div class="col-md-4"><input name="asnNumber" class="form-control" placeholder="Số ASN, VD: ASN-0003" required></div>
+                                <div class="col-md-8"><input name="supplier" class="form-control" placeholder="Nhà cung cấp / người gửi" required></div>
+                            </div>
+                            <textarea name="linesText" class="form-control font-monospace" rows="5" required
+                                      placeholder="Mỗi dòng 1 pallet: MÃ;Nội dung;Kg;Điểm đến&#10;PL-0201;Điện thoại;320;Hà Nội&#10;PL-0202;Thực phẩm;450;Đà Nẵng"></textarea>
+                            <button class="btn btn-primary mt-2">Tạo ASN</button>
+                        </form>
+                    </div>
+                </div>
+                <div class="alert alert-secondary" th:if="${asn == null and !isManager}">
+                    Chuyến này chưa có ASN. Quản lý kho cần tạo ASN, hoặc bạn nhận hàng không theo ASN bên dưới.
+                </div>
+
+                <div class="card shadow-sm mb-4" th:if="${asn != null}">
+                    <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+                        <span>ASN <b th:text="${asn.asnNumber}"></b> – <span th:text="${asn.supplier}"></span>
+                            <span class="badge ms-1" th:classappend="${@ui.badge(asn.status)}" th:text="${asn.status.label}"></span></span>
+                        <span class="small" th:text="|Đã nhận ${asn.receivedCount}/${#lists.size(asn.lines)}|"></span>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-sm mb-0">
+                            <thead><tr><th>#</th><th>Mã pallet</th><th>Nội dung</th><th>Kg (ASN)</th><th>Điểm đến</th><th>Trạng thái</th><th>Nhận hàng</th></tr></thead>
+                            <tbody>
+                            <tr th:each="l : ${asn.lines}">
+                                <td th:text="${l.lineNo}"></td>
+                                <td class="fw-semibold">
+                                    <a th:if="${l.pallet != null}" th:href="@{/pallets/{id}(id=${l.pallet.id})}" th:text="${l.palletCode}"></a>
+                                    <span th:if="${l.pallet == null}" th:text="${l.palletCode}"></span>
+                                </td>
+                                <td th:text="${l.contents}"></td>
+                                <td><span th:text="${l.expectedWeightKg}"></span>
+                                    <span class="small text-muted" th:if="${l.actualWeightKg != null}" th:text="|(thực ${l.actualWeightKg})|"></span></td>
+                                <td th:text="${l.destination}"></td>
+                                <td><span class="badge" th:classappend="${@ui.badge(l.status)}" th:text="${l.status.label}"></span></td>
+                                <td>
+                                    <form th:if="${l.pending and canInbound and trip.status.name() == 'AT_DOCK' and asn.status.name() != 'CLOSED'}"
+                                          th:action="@{/trips/{id}/asn/lines/{lineId}/receive(id=${trip.id}, lineId=${l.id})}" method="post"
+                                          class="d-flex gap-1 align-items-center">
+                                        <input type="number" step="0.1" min="0.1" name="actualWeightKg" class="form-control form-control-sm" style="width: 85px" th:placeholder="${l.expectedWeightKg}" title="Cân thực tế (bỏ trống = theo ASN)">
+                                        <input name="note" class="form-control form-control-sm" style="width: 110px" placeholder="Ghi chú">
+                                        <div class="form-check m-0">
+                                            <input class="form-check-input" type="checkbox" name="damaged" value="true" th:id="|dmg${l.id}|">
+                                            <label class="form-check-label small" th:for="|dmg${l.id}|">Hư</label>
+                                        </div>
+                                        <button class="btn btn-sm btn-success">Nhận</button>
+                                    </form>
+                                </td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="card-footer bg-white" th:if="${canInbound and asn.status.name() != 'CLOSED'}">
+                        <form th:action="@{/trips/{id}/asn/close(id=${trip.id})}" method="post"
+                              onsubmit="return confirm('Chốt nhận hàng? Các pallet chưa nhận sẽ bị ghi nhận THIẾU.')">
+                            <button class="btn btn-sm btn-dark"><i class="bi bi-check2-square"></i> Chốt nhận hàng (đối chiếu ASN)</button>
+                        </form>
+                    </div>
+                </div>
+
+                <div class="card shadow-sm mb-4" th:if="${canInbound and trip.status.name() == 'AT_DOCK' and (asn == null or asn.status.name() != 'CLOSED')}">
+                    <div class="card-header" th:text="${asn == null} ? 'Nhận pallet (chuyến không có ASN)' : 'Nhận pallet NGOÀI ASN (tự tạo ngoại lệ & tạm giữ)'"></div>
+                    <div class="card-body">
+                        <form th:action="@{/trips/{id}/receive-extra(id=${trip.id})}" method="post" class="row g-2">
+                            <div class="col-md-2"><input name="code" class="form-control" placeholder="Mã pallet" required></div>
+                            <div class="col-md-4"><input name="contents" class="form-control" placeholder="Nội dung hàng" required></div>
+                            <div class="col-md-2"><input type="number" step="0.1" min="0.1" name="weightKg" class="form-control" placeholder="Kg" required></div>
+                            <div class="col-md-2"><input name="destination" class="form-control" placeholder="Điểm đến" required></div>
+                            <div class="col-md-2"><button class="btn btn-outline-primary w-100">Nhận</button></div>
+                        </form>
+                    </div>
+                </div>
+
+                <div class="card shadow-sm">
+                    <div class="card-header">Pallet đã dỡ từ chuyến này</div>
+                    <table class="table table-sm table-hover mb-0">
+                        <thead><tr><th>Mã</th><th>Nội dung</th><th>Điểm đến</th><th>Trạng thái</th><th>Đang giữ bởi</th><th>Vị trí</th></tr></thead>
+                        <tbody>
+                        <tr th:each="p : ${pallets}">
+                            <td><a th:href="@{/pallets/{id}(id=${p.id})}" th:text="${p.code}"></a></td>
+                            <td th:text="${p.contents}"></td>
+                            <td th:text="${p.destination}"></td>
+                            <td><span class="badge" th:classappend="${@ui.badge(p.status)}" th:text="${p.status.label}"></span></td>
+                            <td class="small" th:text="${p.currentCustodian}"></td>
+                            <td class="small" th:text="${p.currentLocation}"></td>
+                        </tr>
+                        <tr th:if="${#lists.isEmpty(pallets)}"><td colspan="6" class="text-center text-muted">Chưa nhận pallet nào</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </th:block>
+
+            <!-- ================= CHUYẾN XUẤT ================= -->
+            <th:block th:if="${trip.outbound}">
+                <div class="card shadow-sm mb-4" th:if="${canOutbound and trip.acceptingPallets}">
+                    <div class="card-header">Gán pallet vào chuyến (chỉ pallet 'Sẵn sàng xuất' cùng điểm đến)</div>
+                    <div class="card-body">
+                        <form th:action="@{/trips/{id}/assign(id=${trip.id})}" method="post" class="row g-2">
+                            <div class="col-md-9">
+                                <select name="palletId" class="form-select">
+                                    <option th:each="p : ${available}" th:value="${p.id}"
+                                            th:text="|${p.code} – ${p.contents} (${p.weightKg} kg, ${p.currentCustodian})|"></option>
+                                </select>
+                                <div class="small text-muted mt-1" th:if="${#lists.isEmpty(available)}">Không có pallet phù hợp.</div>
+                            </div>
+                            <div class="col-md-3"><button class="btn btn-primary w-100" th:disabled="${#lists.isEmpty(available)}">Gán</button></div>
+                        </form>
+                    </div>
+                </div>
+
+                <div class="card shadow-sm">
+                    <div class="card-header">Pallet thuộc chuyến</div>
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead><tr><th>Mã</th><th>Nội dung</th><th>Kg</th><th>Trạng thái</th><th>Vị trí</th><th></th></tr></thead>
+                            <tbody>
+                            <tr th:each="p : ${pallets}">
+                                <td><a th:href="@{/pallets/{id}(id=${p.id})}" th:text="${p.code}"></a></td>
+                                <td th:text="${p.contents}"></td>
+                                <td th:text="${p.weightKg}"></td>
+                                <td><span class="badge" th:classappend="${@ui.badge(p.status)}" th:text="${p.status.label}"></span></td>
+                                <td class="small" th:text="${p.currentLocation}"></td>
+                                <td class="text-end text-nowrap">
+                                    <form th:if="${canOutbound and p.status.name() == 'ASSIGNED' and trip.status.name() == 'AT_DOCK'}"
+                                          th:action="@{/pallets/{id}/load(id=${p.id})}" method="post" class="d-inline">
+                                        <input type="hidden" name="back" th:value="|/trips/${trip.id}|">
+                                        <button class="btn btn-sm btn-dark">Lên xe</button>
+                                    </form>
+                                    <form th:if="${isManager and p.status.name() != 'LOADED' and p.status.name() != 'SHIPPED'}"
+                                          th:action="@{/pallets/{id}/unassign(id=${p.id})}" method="post" class="d-inline-flex gap-1">
+                                        <input type="hidden" name="back" th:value="|/trips/${trip.id}|">
+                                        <input name="reason" class="form-control form-control-sm" style="width: 120px" placeholder="Lý do gỡ" required>
+                                        <button class="btn btn-sm btn-outline-secondary">Gỡ</button>
+                                    </form>
+                                </td>
+                            </tr>
+                            <tr th:if="${#lists.isEmpty(pallets)}"><td colspan="6" class="text-center text-muted">Chưa có pallet</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </th:block>
+        </div>
+    </div>
+</main>
+<th:block th:replace="~{fragments/layout :: scripts}"></th:block>
+</body>
+</html>

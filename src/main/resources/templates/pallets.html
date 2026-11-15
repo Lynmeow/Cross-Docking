@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head('Pallet')}"></head>
+<body>
+<nav th:replace="~{fragments/layout :: nav('pallets')}"></nav>
+<main class="container-fluid px-4 pb-5">
+    <div th:replace="~{fragments/layout :: alerts}"></div>
+    <h4 class="mb-3">Pallet <small class="text-muted fs-6">(nhận pallet tại màn hình chi tiết chuyến nhập)</small></h4>
+
+    <div class="mb-3 d-flex flex-wrap gap-1">
+        <a class="btn btn-sm" th:classappend="${selectedStatus == null} ? 'btn-dark' : 'btn-outline-dark'" th:href="@{/pallets}">Tất cả</a>
+        <a th:each="s : ${statuses}" class="btn btn-sm" th:classappend="${selectedStatus == s} ? 'btn-dark' : 'btn-outline-dark'"
+           th:href="@{/pallets(status=${s})}" th:text="${s.label}"></a>
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead><tr><th>Mã</th><th>Nội dung</th><th>Kg</th><th>Điểm đến</th><th>Trạng thái</th><th>Chuyến xuất</th><th>Đang giữ bởi</th><th>Vị trí</th><th>Giờ trong kho</th></tr></thead>
+                <tbody>
+                <tr th:each="p : ${pallets}">
+                    <td class="fw-semibold"><a th:href="@{/pallets/{id}(id=${p.id})}" th:text="${p.code}"></a></td>
+                    <td th:text="${p.contents}"></td>
+                    <td th:text="${p.weightKg}"></td>
+                    <td th:text="${p.destination}"></td>
+                    <td><span class="badge" th:classappend="${@ui.badge(p.status)}" th:text="${p.status.label}"></span></td>
+                    <td th:text="${p.outboundTrip != null} ? ${p.outboundTrip.code} : '—'"></td>
+                    <td class="small" th:text="${p.currentCustodian}"></td>
+                    <td class="small" th:text="${p.currentLocation}"></td>
+                    <td th:text="${#numbers.formatDecimal(p.dwellHours, 1, 1)}"></td>
+                </tr>
+                <tr th:if="${#lists.isEmpty(pallets)}"><td colspan="9" class="text-center text-muted">Không có pallet</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</main>
+<th:block th:replace="~{fragments/layout :: scripts}"></th:block>
+</body>
+</html>

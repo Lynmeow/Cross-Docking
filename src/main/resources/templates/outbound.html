@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head('Outbound')}"></head>
+<body>
+<nav th:replace="~{fragments/layout :: nav('outbound')}"></nav>
+<main class="container-fluid px-4 pb-5">
+    <div th:replace="~{fragments/layout :: alerts}"></div>
+
+    <div class="alert alert-warning d-flex align-items-center gap-2" th:if="${isManager}">
+        <i class="bi bi-eye"></i>
+        <span><b>Chế độ giám sát:</b> quản lý kho chỉ xem. Nhận bàn giao, gán chuyến, xếp xe và cho xe rời do NV Outbound thực hiện.
+            Khi cần can thiệp (gỡ pallet, chuyển chuyến), vào trang chi tiết pallet.</span>
+    </div>
+
+    <div class="card shadow-sm mb-4" th:if="${isOutboundStaff}">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <span><i class="bi bi-inbox"></i> Pallet Inbound bàn giao cho bạn (bước 2/2)</span>
+            <form th:if="${not #lists.isEmpty(pendingForMe)}" th:action="@{/outbound/handover/accept}" method="post" class="m-0">
+                <input type="hidden" name="palletIds" th:each="p : ${pendingForMe}" th:value="${p.id}">
+                <button class="btn btn-sm btn-primary">Nhận tất cả</button>
+            </form>
+        </div>
+        <table class="table table-sm mb-0">
+            <thead><tr><th>Mã</th><th>Nội dung</th><th>Kg</th><th>Điểm đến</th><th>Người giao</th><th>Vị trí</th><th></th></tr></thead>
+            <tbody>
+            <tr th:each="p : ${pendingForMe}">
+                <td><a th:href="@{/pallets/{id}(id=${p.id})}" th:text="${p.code}"></a></td>
+                <td th:text="${p.contents}"></td>
+                <td th:text="${p.weightKg}"></td>
+                <td th:text="${p.destination}"></td>
+                <td class="small" th:text="${p.currentCustodian}"></td>
+                <td class="small" th:text="${p.currentLocation}"></td>
+                <td class="text-end text-nowrap">
+                    <form th:action="@{/outbound/handover/accept}" method="post" class="d-inline">
+                        <input type="hidden" name="palletIds" th:value="${p.id}">
+                        <button class="btn btn-sm btn-primary">Nhận</button>
+                    </form>
+                    <form th:action="@{/outbound/handover/{id}/reject(id=${p.id})}" method="post" class="d-inline-flex gap-1">
+                        <input name="reason" class="form-control form-control-sm" style="width: 140px" placeholder="Lý do từ chối" required>
+                        <button class="btn btn-sm btn-outline-danger">Từ chối</button>
+                    </form>
+                </td>
+            </tr>
+            <tr th:if="${#lists.isEmpty(pendingForMe)}"><td colspan="7" class="text-center text-muted">Không có pallet chờ bạn xác nhận</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div class="row g-4">
+        <div class="col-lg-7">
+            <div class="card shadow-sm">
+                <div class="card-header"><i class="bi bi-truck"></i> Chuyến xuất đang mở</div>
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead><tr><th>Chuyến</th><th>Điểm đến</th><th>Xe</th><th>Cửa</th><th>Lịch</th><th>Pallet</th><th>Trạng thái</th><th></th></tr></thead>
+                        <tbody>
+                        <tr th:each="t : ${trips}">
+                            <td class="fw-semibold" th:text="${t.code}"></td>
+                            <td th:text="${t.destination}"></td>
+                            <td th:text="${t.truckPlate}"></td>
+                            <td th:text="${t.dock.code}"></td>
+                            <td class="small text-nowrap" th:text="${@ui.dt(t.scheduledArrival)}"></td>
+                            <td th:text="|${counts[t.id]}/${t.capacity}|"></td>
+                            <td><span class="badge" th:classappend="${@ui.badge(t.status)}" th:text="${t.status.label}"></span></td>
+                            <td class="text-end text-nowrap">
+                                <form th:if="${canOutbound and t.status.name() == 'SCHEDULED'}" th:action="@{/trips/{id}/arrive(id=${t.id})}" method="post" class="d-inline">
+                                    <input type="hidden" name="back" value="/outbound">
+                                    <button class="btn btn-sm btn-success">Xe vào cửa</button>
+                                </form>
+                                <a class="btn btn-sm" th:classappend="${canOutbound} ? 'btn-primary' : 'btn-outline-secondary'"
+                                   th:href="@{/trips/{id}(id=${t.id})}" th:text="${canOutbound} ? 'Xếp hàng' : 'Xem chi tiết'"></a>
+                            </td>
+                        </tr>
+                        <tr th:if="${#lists.isEmpty(trips)}"><td colspan="8" class="text-center text-muted">Không có chuyến xuất</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-5">
+            <div class="card shadow-sm">
+                <div class="card-header"><i class="bi bi-check2-circle"></i> Pallet sẵn sàng xuất (chưa gán chuyến)</div>
+                <table class="table table-sm mb-0">
+                    <thead><tr><th>Mã</th><th>Điểm đến</th><th>Đang giữ bởi</th></tr></thead>
+                    <tbody>
+                    <tr th:each="p : ${ready}">
+                        <td><a th:href="@{/pallets/{id}(id=${p.id})}" th:text="${p.code}"></a></td>
+                        <td th:text="${p.destination}"></td>
+                        <td class="small" th:text="${p.currentCustodian}"></td>
+                    </tr>
+                    <tr th:if="${#lists.isEmpty(ready)}"><td colspan="3" class="text-center text-muted">Không có</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</main>
+<th:block th:replace="~{fragments/layout :: scripts}"></th:block>
+</body>
+</html>

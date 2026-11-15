@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head('Sửa tài khoản')}"></head>
+<body>
+<nav th:replace="~{fragments/layout :: nav('users')}"></nav>
+<main class="container px-4 pb-5" style="max-width: 900px">
+    <div th:replace="~{fragments/layout :: alerts}"></div>
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h4 class="mb-0">Tài khoản <span th:text="${user.username}"></span></h4>
+        <a th:href="@{/admin/users}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Danh sách</a>
+    </div>
+    <div class="row g-4">
+        <div class="col-md-6">
+            <div class="card shadow-sm">
+                <div class="card-header">Thông tin & vai trò</div>
+                <div class="card-body">
+                    <form th:action="@{/admin/users/{id}(id=${user.id})}" method="post">
+                        <div class="mb-2"><label class="form-label">Họ tên</label>
+                            <input name="fullName" class="form-control" th:value="${user.fullName}" required></div>
+                        <div class="mb-2"><label class="form-label">Vai trò</label>
+                            <select name="role" class="form-select">
+                                <option th:each="r : ${roles}" th:value="${r}" th:text="${r.label}" th:selected="${r == user.role}"></option>
+                            </select></div>
+                        <div class="form-check mb-3">
+                            <input class="form-check-input" type="checkbox" name="active" value="true" id="active" th:checked="${user.active}">
+                            <label class="form-check-label" for="active">Đang hoạt động</label>
+                        </div>
+                        <button class="btn btn-primary">Lưu thay đổi</button>
+                    </form>
+                    <hr>
+                    <dl class="row small mb-0">
+                        <dt class="col-5">Tạo lúc</dt><dd class="col-7" th:text="${@ui.dt(user.createdAt)}"></dd>
+                        <dt class="col-5">Đăng nhập gần nhất</dt><dd class="col-7" th:text="${@ui.dt(user.lastLoginAt)}"></dd>
+                        <dt class="col-5">Số lần sai MK</dt><dd class="col-7" th:text="${user.failedAttempts}"></dd>
+                    </dl>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card shadow-sm mb-4">
+                <div class="card-header">Đặt lại mật khẩu tạm</div>
+                <div class="card-body">
+                    <form th:action="@{/admin/users/{id}/reset-password(id=${user.id})}" method="post" class="input-group">
+                        <input name="password" class="form-control" placeholder="Mật khẩu tạm mới" required>
+                        <button class="btn btn-warning">Đặt lại</button>
+                    </form>
+                    <div class="small text-muted mt-2">Tài khoản sẽ được mở khóa và buộc đổi mật khẩu khi đăng nhập.</div>
+                </div>
+            </div>
+            <div class="card shadow-sm" th:if="${user.locked}">
+                <div class="card-header text-danger">Tài khoản đang bị khóa</div>
+                <div class="card-body">
+                    <form th:action="@{/admin/users/{id}/unlock(id=${user.id})}" method="post">
+                        <button class="btn btn-success w-100"><i class="bi bi-unlock"></i> Mở khóa</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</main>
+<th:block th:replace="~{fragments/layout :: scripts}"></th:block>
+</body>
+</html>

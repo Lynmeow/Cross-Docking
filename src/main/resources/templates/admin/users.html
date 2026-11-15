@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head('Quản lý tài khoản')}"></head>
+<body>
+<nav th:replace="~{fragments/layout :: nav('users')}"></nav>
+<main class="container-fluid px-4 pb-5">
+    <div th:replace="~{fragments/layout :: alerts}"></div>
+    <div class="row g-4">
+        <div class="col-lg-4">
+            <div class="card shadow-sm">
+                <div class="card-header"><i class="bi bi-person-plus"></i> Cấp tài khoản mới</div>
+                <div class="card-body">
+                    <form th:action="@{/admin/users}" method="post">
+                        <div class="mb-2"><label class="form-label">Tên đăng nhập</label>
+                            <input name="username" class="form-control" placeholder="vd: inbound2" required></div>
+                        <div class="mb-2"><label class="form-label">Họ tên</label>
+                            <input name="fullName" class="form-control" required></div>
+                        <div class="mb-2"><label class="form-label">Vai trò</label>
+                            <select name="role" class="form-select">
+                                <option th:each="r : ${roles}" th:value="${r}" th:text="${r.label}"></option>
+                            </select></div>
+                        <div class="mb-3"><label class="form-label">Mật khẩu tạm</label>
+                            <input name="password" class="form-control" placeholder="≥ 8 ký tự, có chữ và số" required></div>
+                        <button class="btn btn-primary w-100">Cấp tài khoản</button>
+                        <div class="small text-muted mt-2">Người dùng bắt buộc đổi mật khẩu ở lần đăng nhập đầu.</div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-8">
+            <div class="card shadow-sm">
+                <div class="card-header">Danh sách tài khoản</div>
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead><tr><th>Username</th><th>Họ tên</th><th>Vai trò</th><th>Trạng thái</th><th>Đăng nhập gần nhất</th><th></th></tr></thead>
+                        <tbody>
+                        <tr th:each="u : ${users}">
+                            <td class="fw-semibold" th:text="${u.username}"></td>
+                            <td th:text="${u.fullName}"></td>
+                            <td><span class="badge" th:classappend="${@ui.roleBadge(u.role)}" th:text="${u.role.label}"></span></td>
+                            <td>
+                                <span class="badge text-bg-success" th:if="${u.active and !u.locked}">Hoạt động</span>
+                                <span class="badge text-bg-secondary" th:if="${!u.active}">Vô hiệu</span>
+                                <span class="badge text-bg-danger" th:if="${u.locked}">Bị khóa</span>
+                                <span class="badge text-bg-warning" th:if="${u.mustChangePassword}">Chờ đổi MK</span>
+                            </td>
+                            <td class="small" th:text="${@ui.dt(u.lastLoginAt)}"></td>
+                            <td class="text-end"><a class="btn btn-sm btn-outline-primary" th:href="@{/admin/users/{id}(id=${u.id})}">Sửa</a></td>
+                        </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</main>
+<th:block th:replace="~{fragments/layout :: scripts}"></th:block>
+</body>
+</html>

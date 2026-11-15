@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head('In tem pallet')}"></head>
+<body>
+<style>
+    .left-panel { border: 1px solid #dee2e6; border-radius: .5rem; padding: 1rem; height: 100%; }
+    .section-title { font-weight: 600; font-size: .875rem; margin-bottom: .5rem; }
+    .preview-box { background: #f1f3f5; border-radius: .5rem; padding: 12px; display: flex; justify-content: center; overflow: auto; min-height: 120px; }
+    .lbl { border: 1px dashed #adb5bd; padding: 2mm; background: #fff; color: #000; box-sizing: border-box;
+           display: flex; flex-direction: column; align-items: center; justify-content: center; overflow: hidden;
+           font-family: Arial, sans-serif; }
+    .lbl.qr { flex-direction: row; justify-content: flex-start; gap: 2mm; }
+        .lbl .code { flex-shrink: 0; }
+    .lbl .code svg { max-width: 100%; height: auto; display: block; }
+    .lbl .info { font-size: 8.5pt; line-height: 1.2; text-align: center; margin-top: 1mm; }
+    .lbl.qr .info { text-align: left; margin-top: 0; font-size: 9pt; }
+    #palletTable tbody tr { cursor: pointer; }
+    #printArea { display: none; gap: 2mm; }
+    @media print {
+        body > *:not(#printArea) { display: none !important; }
+        #printArea { display: grid !important; }
+        .lbl { border: 1px solid #000; break-inside: avoid; }
+        @page { size: A4; margin: 5mm; }
+    }
+</style>
+
+<nav th:replace="~{fragments/layout :: nav('labels')}"></nav>
+<main class="container-fluid px-4 pb-5">
+    <div th:replace="~{fragments/layout :: alerts}"></div>
+
+    <div class="card shadow-sm">
+        <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <span><i class="bi bi-upc-scan"></i> In mã vạch / mã QR tem pallet</span>
+            <span class="small text-muted fw-normal">Dán tem lên pallet để quét khi tập kết, bàn giao và xếp xe</span>
+        </div>
+
+        <div class="card-body">
+            <!-- Chọn nguồn pallet -->
+            <form id="filterForm" th:action="@{/labels}" method="get">
+                <div class="d-flex flex-wrap align-items-center gap-3 border rounded px-3 py-2 mb-3 bg-light">
+                    <span class="small fw-semibold">In tem theo</span>
+                    <div class="form-check form-check-inline m-0">
+                        <input class="form-check-input mode-radio" type="radio" name="mode" id="mAll" value="all" th:checked="${mode == 'all'}">
+                        <label class="form-check-label small" for="mAll">Pallet đang trong kho</label>
+                    </div>
+                    <div class="form-check form-check-inline m-0">
+                        <input class="form-check-input mode-radio" type="radio" name="mode" id="mIn" value="inbound" th:checked="${mode == 'inbound'}">
+                        <label class="form-check-label small" for="mIn">Theo chuyến nhập</label>
+                    </div>
+                    <div class="form-check form-check-inline m-0">
+                        <input class="form-check-input mode-radio" type="radio" name="mode" id="mOut" value="outbound" th:checked="${mode == 'outbound'}">
+                        <label class="form-check-label small" for="mOut">Theo chuyến xuất</label>
+                    </div>
+                    <select th:if="${mode == 'inbound'}" name="tripId" class="form-select form-select-sm w-auto" onchange="this.form.submit()">
+                        <option th:each="t : ${inboundTrips}" th:value="${t.id}" th:text="|${t.code} (${t.status.label})|" th:selected="${t.id == tripId}"></option>
+                    </select>
+                    <select th:if="${mode == 'outbound'}" name="tripId" class="form-select form-select-sm w-auto" onchange="this.form.submit()">
+                        <option th:each="t : ${outboundTrips}" th:value="${t.id}" th:text="|${t.code} → ${t.destination} (${t.status.label})|" th:selected="${t.id == tripId}"></option>
+                    </select>
+                </div>
+            </form>
+
+            <div class="row g-3">
+                <!-- ===== Cột trái: cấu hình tem ===== -->
+                <div class="col-lg-4">
+                    <div class="left-panel">
+                        <div class="section-title"><i class="bi bi-tag text-primary"></i> Loại tem in</div>
+                        <div class="btn-group w-100 mb-3" role="group">
+                            <input type="radio" class="btn-check" name="ltype" id="tBar" value="barcode" checked>
+                            <label class="btn btn-outline-primary btn-sm" for="tBar"><i class="bi bi-upc"></i> Mã vạch</label>
+                            <input type="radio" class="btn-check" name="ltype" id="tQr" value="qr">
+                            <label class="btn btn-outline-primary btn-sm" for="tQr"><i class="bi bi-qr-code"></i> Mã QR</label>
+                        </div>
+
+                        <div class="section-title"><i class="bi bi-card-text text-danger"></i> Thông tin hiển thị</div>
+                        <div class="d-flex flex-wrap gap-3 mb-2 small">
+                            <div class="form-check"><input class="form-check-input opt" type="checkbox" id="showDest" checked><label class="form-check-label" for="showDest">Điểm đến</label></div>
+                            <div class="form-check"><input class="form-check-input opt" type="checkbox" id="showTrip" checked><label class="form-check-label" for="showTrip">Chuyến xuất</label></div>
+                            <div class="form-check"><input class="form-check-input opt" type="checkbox" id="showContents"><label class="form-check-label" for="showContents">Nội dung hàng</label></div>
+                        </div>
+                        <div class="small text-muted mb-1">Xem trước</div>
+                        <div class="preview-box mb-3"><div id="preview"></div></div>
+
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span class="section-title mb-0"><i class="bi bi-gear text-success"></i> Tùy chỉnh giấy in</span>
+                            <a href="#" id="resetPaper" class="small">Đặt lại mặc định</a>
+                        </div>
+                        <div class="row g-2 mt-1 small align-items-center">
+                            <div class="col-5">Khổ giấy</div>
+                            <div class="col-7">
+                                <select id="paper" class="form-select form-select-sm">
+                                    <option value="3|70|37">A4 – 3 tem/hàng (70×37)</option>
+                                    <option value="2|100|50">A4 – 2 tem/hàng (100×50)</option>
+                                    <option value="4|50|30">A4 – 4 tem/hàng (50×30)</option>
+                                    <option value="1|100|60">Máy in tem cuộn (100×60)</option>
+                                </select>
+                            </div>
+                            <div class="col-5 ps-3">Số tem / hàng</div>
+                            <div class="col-7"><input type="number" id="perRow" min="1" max="6" class="form-control form-control-sm text-end opt"></div>
+                            <div class="col-5 ps-3">Chiều rộng tem (mm)</div>
+                            <div class="col-7"><input type="number" id="lw" min="20" max="200" class="form-control form-control-sm text-end opt"></div>
+                            <div class="col-5 ps-3">Chiều cao tem (mm)</div>
+                            <div class="col-7"><input type="number" id="lh" min="15" max="150" class="form-control form-control-sm text-end opt"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ===== Cột phải: danh sách pallet ===== -->
+                <div class="col-lg-8">
+                    <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+                        <span class="section-title mb-0"><i class="bi bi-boxes text-warning"></i> Pallet cần in tem</span>
+                        <div class="input-group input-group-sm" style="max-width: 280px">
+                            <span class="input-group-text"><i class="bi bi-search"></i></span>
+                            <input form="filterForm" name="q" class="form-control" th:value="${q}" placeholder="Mã, nội dung, điểm đến…">
+                        </div>
+                    </div>
+
+                    <div class="table-responsive border rounded">
+                        <table class="table table-sm table-hover align-middle mb-0" id="palletTable">
+                            <thead class="table-light">
+                            <tr>
+                                <th style="width: 36px"><input type="checkbox" class="form-check-input" id="checkAll"></th>
+                                <th>Mã pallet</th><th>Nội dung</th><th>Điểm đến</th><th>Chuyến xuất</th><th>Trạng thái</th>
+                                <th class="text-end" style="width: 100px">SL tem</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            <tr th:each="p : ${pallets}"
+                                th:data-code="${p.code}" th:data-dest="${p.destination}" th:data-contents="${p.contents}"
+                                th:data-trip="${p.outboundTrip != null} ? ${p.outboundTrip.code} : ''">
+                                <td><input type="checkbox" class="form-check-input row-check"></td>
+                                <td class="fw-semibold" th:text="${p.code}"></td>
+                                <td th:text="${p.contents}"></td>
+                                <td th:text="${p.destination}"></td>
+                                <td th:text="${p.outboundTrip != null} ? ${p.outboundTrip.code} : '—'"></td>
+                                <td><span class="badge" th:classappend="${@ui.badge(p.status)}" th:text="${p.status.label}"></span></td>
+                                <td><input type="number" min="1" max="50" value="1" class="form-control form-control-sm text-end qty"></td>
+                            </tr>
+                            <tr th:if="${#lists.isEmpty(pallets)}"><td colspan="7" class="text-center text-muted py-4">Không có pallet</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="d-flex justify-content-between align-items-center mt-2 small flex-wrap gap-2">
+                        <span>Tổng số: <b th:text="${#lists.size(pallets)}"></b> · Đã chọn: <b id="selCount">0</b></span>
+                        <div class="d-flex align-items-center gap-2">
+                            <span>Số dòng/trang</span>
+                            <select id="pageSize" class="form-select form-select-sm w-auto">
+                                <option>10</option><option selected>20</option><option>50</option>
+                            </select>
+                            <span id="pageInfo"></span>
+                            <div class="btn-group btn-group-sm">
+                                <button type="button" class="btn btn-outline-secondary" id="firstPage">«</button>
+                                <button type="button" class="btn btn-outline-secondary" id="prevPage">‹</button>
+                                <button type="button" class="btn btn-outline-secondary" id="nextPage">›</button>
+                                <button type="button" class="btn btn-outline-secondary" id="lastPage">»</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card-footer bg-white d-flex justify-content-end gap-2">
+            <button type="button" class="btn btn-outline-secondary" id="btnClear">Hủy chọn</button>
+            <button type="button" class="btn btn-primary px-4" id="btnPrint"><i class="bi bi-printer"></i> In</button>
+        </div>
+    </div>
+</main>
+
+<div id="printArea"></div>
+
+<th:block th:replace="~{fragments/layout :: scripts}"></th:block>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jsbarcode/3.11.6/JsBarcode.all.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script>
+(function () {
+    const $ = id => document.getElementById(id);
+    const rows = Array.from(document.querySelectorAll('#palletTable tbody tr[data-code]'));
+    let page = 0;
+
+    // Đổi chế độ: bỏ tripId cũ rồi tải lại
+    document.querySelectorAll('.mode-radio').forEach(r => r.addEventListener('change', () => {
+        document.querySelectorAll('[name=tripId]').forEach(s => s.disabled = true);
+        $('filterForm').submit();
+    }));
+
+    function settings() {
+        return {
+            type: document.querySelector('input[name=ltype]:checked').value,
+            perRow: Math.max(1, parseInt($('perRow').value) || 1),
+            w: Math.max(20, parseFloat($('lw').value) || 70),
+            h: Math.max(15, parseFloat($('lh').value) || 37),
+            showDest: $('showDest').checked,
+            showTrip: $('showTrip').checked,
+            showContents: $('showContents').checked
+        };
+    }
+
+    function esc(t) {
+        return String(t).replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
+    }
+
+    function dataOf(tr) {
+        return { code: tr.dataset.code, dest: tr.dataset.dest, trip: tr.dataset.trip, contents: tr.dataset.contents };
+    }
+
+    function buildLabel(p, s) {
+        const box = document.createElement('div');
+        box.className = 'lbl' + (s.type === 'qr' ? ' qr' : '');
+        box.style.width = s.w + 'mm';
+        box.style.height = s.h + 'mm';
+
+        const code = document.createElement('div');
+        code.className = 'code';
+        if (s.type === 'barcode') {
+            const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+            JsBarcode(svg, p.code, { format: 'CODE128', displayValue: true, fontSize: 13, textMargin: 1, height: 32, margin: 0, width: 1.5 });            code.appendChild(svg);
+        } else {
+            const px = Math.round(Math.min(s.h - 5, s.w / 2) * 3.78);
+            new QRCode(code, { text: p.code, width: px, height: px, correctLevel: QRCode.CorrectLevel.M });
+        }
+
+        const lines = [];
+        if (s.type === 'qr') lines.push('<b style="font-size:11pt">' + esc(p.code) + '</b>');
+        if (s.showDest && p.dest) lines.push('→ <b>' + esc(p.dest) + '</b>');
+        if (s.showTrip) lines.push('Chuyến: ' + esc(p.trip || 'chưa gán'));
+        if (s.showContents && p.contents) lines.push(esc(p.contents));
+        const info = document.createElement('div');
+        info.className = 'info';
+        info.innerHTML = lines.join('<br>');
+
+        box.appendChild(code);
+        box.appendChild(info);
+        return box;
+    }
+
+    const selected = () => rows.filter(r => r.querySelector('.row-check').checked);
+
+    function refreshPreview() {
+        const s = settings();
+        const src = selected()[0] || rows[0];
+        const p = src ? dataOf(src) : { code: 'PL-0001', dest: 'Hà Nội', trip: 'OUT-HN-001', contents: 'Hàng mẫu' };
+        const pv = $('preview');
+        pv.innerHTML = '';
+        pv.appendChild(buildLabel(p, s));
+    }
+
+    function refreshCount() {
+        $('selCount').textContent = selected().length;
+    }
+
+    const pageCount = () => Math.max(1, Math.ceil(rows.length / parseInt($('pageSize').value)));
+
+    function renderPage() {
+        const size = parseInt($('pageSize').value);
+        page = Math.min(Math.max(page, 0), pageCount() - 1);
+        rows.forEach((r, i) => r.style.display = (i >= page * size && i < (page + 1) * size) ? '' : 'none');
+        const from = rows.length ? page * size + 1 : 0;
+        const to = Math.min(rows.length, (page + 1) * size);
+        $('pageInfo').textContent = from + ' - ' + to;
+    }
+
+    function applyPreset() {
+        const [n, w, h] = $('paper').value.split('|');
+        $('perRow').value = n;
+        $('lw').value = w;
+        $('lh').value = h;
+        refreshPreview();
+    }
+
+    function doPrint() {
+        const chosen = selected();
+        if (!chosen.length) { alert('Hãy tick chọn ít nhất 1 pallet cần in tem.'); return; }
+        const s = settings();
+        const area = $('printArea');
+        area.innerHTML = '';
+        area.style.gridTemplateColumns = 'repeat(' + s.perRow + ', ' + s.w + 'mm)';
+        chosen.forEach(r => {
+            const qty = Math.min(50, Math.max(1, parseInt(r.querySelector('.qty').value) || 1));
+            for (let i = 0; i < qty; i++) area.appendChild(buildLabel(dataOf(r), s));
+        });
+        setTimeout(() => window.print(), 400);
+    }
+
+    // ----- sự kiện -----
+    document.querySelectorAll('input[name=ltype], .opt').forEach(el => {
+        el.addEventListener('change', refreshPreview);
+        el.addEventListener('input', refreshPreview);
+    });
+    $('paper').addEventListener('change', applyPreset);
+    $('resetPaper').addEventListener('click', e => { e.preventDefault(); $('paper').selectedIndex = 0; applyPreset(); });
+    $('checkAll').addEventListener('change', e => {
+        rows.forEach(r => r.querySelector('.row-check').checked = e.target.checked);
+        refreshCount(); refreshPreview();
+    });
+    rows.forEach(r => {
+        r.querySelector('.row-check').addEventListener('change', () => { refreshCount(); refreshPreview(); });
+        r.addEventListener('click', e => {               // bấm vào dòng cũng tick được
+            if (e.target.closest('input')) return;
+            const cb = r.querySelector('.row-check');
+            cb.checked = !cb.checked;
+            refreshCount(); refreshPreview();
+        });
+    });
+    $('btnClear').addEventListener('click', () => {
+        $('checkAll').checked = false;
+        rows.forEach(r => r.querySelector('.row-check').checked = false);
+        refreshCount(); refreshPreview();
+    });
+    $('btnPrint').addEventListener('click', doPrint);
+    $('pageSize').addEventListener('change', () => { page = 0; renderPage(); });
+    $('firstPage').addEventListener('click', () => { page = 0; renderPage(); });
+    $('prevPage').addEventListener('click', () => { page--; renderPage(); });
+    $('nextPage').addEventListener('click', () => { page++; renderPage(); });
+    $('lastPage').addEventListener('click', () => { page = pageCount() - 1; renderPage(); });
+
+    applyPreset();
+    renderPage();
+    refreshCount();
+})();
+</script>
+</body>
+</html>

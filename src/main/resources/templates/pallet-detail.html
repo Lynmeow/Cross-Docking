@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head('Chi tiết pallet')}"></head>
+<body>
+<nav th:replace="~{fragments/layout :: nav('pallets')}"></nav>
+<main class="container-fluid px-4 pb-5" th:with="st=${pallet.status.name()}">
+    <div th:replace="~{fragments/layout :: alerts}"></div>
+
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h4 class="mb-0">Pallet <span th:text="${pallet.code}"></span>
+            <span class="badge" th:classappend="${@ui.badge(pallet.status)}" th:text="${pallet.status.label}"></span></h4>
+        <a th:href="@{/pallets}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Danh sách</a>
+    </div>
+
+    <div class="row g-4">
+        <div class="col-lg-4">
+            <div class="card shadow-sm mb-4">
+                <div class="card-header"><i class="bi bi-info-circle"></i> Thông tin</div>
+                <div class="card-body">
+                    <dl class="row mb-0 small">
+                        <dt class="col-5">Nội dung</dt><dd class="col-7" th:text="${pallet.contents}"></dd>
+                        <dt class="col-5">Khối lượng</dt><dd class="col-7" th:text="|${pallet.weightKg} kg|"></dd>
+                        <dt class="col-5">Điểm đến</dt><dd class="col-7" th:text="${pallet.destination}"></dd>
+                        <dt class="col-5">Chuyến nhập</dt>
+                        <dd class="col-7"><a th:href="@{/trips/{id}(id=${pallet.inboundTrip.id})}" th:text="${pallet.inboundTrip.code}"></a></dd>
+                        <dt class="col-5">Chuyến xuất</dt>
+                        <dd class="col-7">
+                            <a th:if="${pallet.outboundTrip != null}" th:href="@{/trips/{id}(id=${pallet.outboundTrip.id})}" th:text="${pallet.outboundTrip.code}"></a>
+                            <span th:if="${pallet.outboundTrip == null}">—</span></dd>
+                        <dt class="col-5">Đang giữ bởi</dt><dd class="col-7 fw-semibold" th:text="${pallet.currentCustodian}"></dd>
+                        <dt class="col-5" th:if="${pallet.pendingRecipient != null}">Chờ xác nhận</dt>
+                        <dd class="col-7" th:if="${pallet.pendingRecipient != null}" th:text="${pallet.pendingRecipient.displayName}"></dd>
+                        <dt class="col-5">Vị trí</dt><dd class="col-7" th:text="${pallet.currentLocation}"></dd>
+                        <dt class="col-5">Nhận lúc</dt><dd class="col-7" th:text="${@ui.dt(pallet.receivedAt)}"></dd>
+                        <dt class="col-5">Giờ trong kho</dt><dd class="col-7" th:text="${#numbers.formatDecimal(pallet.dwellHours, 1, 1)}"></dd>
+                    </dl>
+                </div>
+            </div>
+
+            <!-- Thao tác vận hành: chỉ NV Inbound / NV Outbound -->
+            <div class="card shadow-sm mb-4"
+                 th:if="${(canInbound and (st == 'RECEIVED' or st == 'STAGED')) or (canOutbound and st != 'LOADED' and st != 'SHIPPED')}">
+                <div class="card-header"><i class="bi bi-lightning"></i> Thao tác</div>
+                <div class="card-body d-grid gap-3">
+                    <form th:if="${canInbound and (st == 'RECEIVED' or st == 'STAGED')}" th:action="@{/pallets/{id}/stage(id=${pallet.id})}" method="post" class="input-group">
+                        <input name="zone" class="form-control" placeholder="Khu tập kết, VD: A1" required>
+                        <button class="btn btn-primary">Tập kết</button>
+                    </form>
+
+                    <form th:if="${canOutbound and st != 'LOADED' and st != 'SHIPPED'}" th:action="@{/pallets/{id}/assign(id=${pallet.id})}" method="post">
+                        <div class="input-group">
+                            <select name="tripId" class="form-select">
+                                <option th:each="t : ${outboundTrips}" th:value="${t.id}" th:text="|${t.code} → ${t.destination}|"></option>
+                            </select>
+                            <button class="btn btn-primary">Gán chuyến</button>
+                        </div>
+                        <div class="small text-danger mt-1" th:if="${pallet.outboundTrip != null}">
+                            <i class="bi bi-shield-lock"></i> Pallet đã thuộc chuyến <b th:text="${pallet.outboundTrip.code}"></b> –
+                            gán thêm sẽ bị chặn và ghi nhận ngoại lệ.
+                        </div>
+                    </form>
+
+                    <form th:if="${canOutbound and st == 'ASSIGNED'}" th:action="@{/pallets/{id}/load(id=${pallet.id})}" method="post">
+                        <button class="btn btn-primary w-100">Xếp lên xe</button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Can thiệp: chỉ Quản lý kho -->
+            <div class="card shadow-sm mb-4" th:if="${isManager and pallet.outboundTrip != null and st != 'LOADED' and st != 'SHIPPED'}">
+                <div class="card-header"><i class="bi bi-person-gear"></i> Quản lý kho can thiệp</div>
+                <div class="card-body d-grid gap-3">
+                    <form th:if="${st == 'ASSIGNED'}" th:action="@{/pallets/{id}/reassign(id=${pallet.id})}" method="post" class="d-grid gap-2">
+                        <select name="tripId" class="form-select">
+                            <option th:each="t : ${outboundTrips}" th:if="${t.id != pallet.outboundTrip.id}" th:value="${t.id}" th:text="|${t.code} → ${t.destination}|"></option>
+                        </select>
+                        <input name="reason" class="form-control" placeholder="Lý do chuyển chuyến" required>
+                        <button class="btn btn-outline-primary">Chuyển chuyến</button>
+                    </form>
+                    <form th:action="@{/pallets/{id}/unassign(id=${pallet.id})}" method="post" class="input-group">
+                        <input name="reason" class="form-control" placeholder="Lý do gỡ" required>
+                        <button class="btn btn-outline-secondary">Gỡ khỏi chuyến</button>
+                    </form>
+                </div>
+            </div>
+
+            <div class="card shadow-sm">
+                <div class="card-header"><i class="bi bi-exclamation-triangle"></i> Báo ngoại lệ chuyển tải</div>
+                <div class="card-body">
+                    <form th:action="@{/incidents}" method="post">
+                        <input type="hidden" name="palletId" th:value="${pallet.id}">
+                        <input type="hidden" name="back" th:value="|/pallets/${pallet.id}|">
+                        <select name="type" class="form-select mb-2">
+                            <option th:each="t : ${incidentTypes}" th:value="${t}" th:text="${t.label}"></option>
+                        </select>
+                        <textarea name="description" class="form-control mb-2" rows="2" placeholder="Mô tả" required></textarea>
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="checkbox" name="hold" value="true" id="hold" checked>
+                            <label class="form-check-label" for="hold">Tạm giữ pallet</label>
+                        </div>
+                        <button class="btn btn-outline-danger w-100">Ghi nhận</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-8">
+            <div class="alert" th:classappend="${chain.valid()} ? 'alert-success' : 'alert-danger'">
+                <i class="bi" th:classappend="${chain.valid()} ? 'bi-shield-check' : 'bi-shield-exclamation'"></i>
+                <strong>Kiểm chứng chain of custody:</strong> <span th:text="${chain.message()}"></span>
+            </div>
+
+            <div class="card shadow-sm mb-4">
+                <div class="card-header"><i class="bi bi-link-45deg"></i> Chuỗi giám sát (chain of custody)</div>
+                <div class="table-responsive">
+                    <table class="table table-sm mb-0">
+                        <thead><tr><th>#</th><th>Thời điểm</th><th>Sự kiện</th><th>Bàn giao</th><th>Vị trí</th><th>Thực hiện</th><th>Hash</th></tr></thead>
+                        <tbody>
+                        <tr th:each="e : ${events}"
+                            th:classappend="${not chain.valid() and chain.brokenAtSequence() != null and e.sequenceNo >= chain.brokenAtSequence()} ? 'table-danger'">
+                            <td th:text="${e.sequenceNo}"></td>
+                            <td class="text-nowrap small" th:text="${@ui.dt(e.occurredAt)}"></td>
+                            <td><span th:text="${e.type.label}"></span>
+                                <div class="small text-muted" th:if="${e.note}" th:text="${e.note}"></div></td>
+                            <td class="small"><span th:text="${e.fromCustodian}"></span> <i class="bi bi-arrow-right"></i> <b th:text="${e.toCustodian}"></b></td>
+                            <td class="small" th:text="${e.location}"></td>
+                            <td class="small" th:text="${e.actor}"></td>
+                            <td>
+                                <div class="hash" th:title="${e.hash}" th:text="${@ui.shortHash(e.hash)}"></div>
+                                <div class="hash" th:title="${e.previousHash}" th:text="|prev: ${@ui.shortHash(e.previousHash)}|"></div>
+                            </td>
+                        </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="card shadow-sm">
+                <div class="card-header"><i class="bi bi-list-check"></i> Ngoại lệ liên quan</div>
+                <ul class="list-group list-group-flush">
+                    <li class="list-group-item" th:each="i : ${incidents}">
+                        <span class="badge me-1" th:classappend="${@ui.badge(i.status)}" th:text="${i.status.label}"></span>
+                        <strong th:text="|#${i.id} ${i.type.label}|"></strong>
+                        <span class="small text-muted" th:text="|– ${@ui.dt(i.createdAt)} bởi ${i.reportedBy}|"></span>
+                        <div class="small" th:text="${i.description}"></div>
+                        <div class="small text-success" th:if="${i.resolution}" th:text="|Xử lý: ${i.resolution} (${i.resolvedBy})|"></div>
+                        <form th:if="${isManager and i.status.name() == 'OPEN'}" th:action="@{/incidents/{id}/resolve(id=${i.id})}" method="post" class="input-group input-group-sm mt-2">
+                            <input type="hidden" name="back" th:value="|/pallets/${pallet.id}|">
+                            <input name="resolution" class="form-control" placeholder="Cách xử lý" required>
+                            <button class="btn btn-primary">Đóng</button>
+                        </form>
+                    </li>
+                    <li class="list-group-item text-muted" th:if="${#lists.isEmpty(incidents)}">Không có ngoại lệ</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</main>
+<th:block th:replace="~{fragments/layout :: scripts}"></th:block>
+</body>
+</html>

@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head('Tổng quan')}"></head>
+<body>
+<nav th:replace="~{fragments/layout :: nav('dashboard')}"></nav>
+<main class="container-fluid px-4 pb-5">
+    <div th:replace="~{fragments/layout :: alerts}"></div>
+    <h4 class="mb-3">Tổng quan kho trung chuyển</h4>
+
+    <div class="row g-3 mb-4">
+        <div class="col-6 col-lg-2"><div class="card shadow-sm h-100"><div class="card-body">
+            <div class="text-muted small">Cửa trống</div>
+            <div class="stat text-success"><span th:text="${dockAvailable}"></span><span class="fs-6 text-muted" th:text="|/${dockTotal}|"></span></div>
+            <div class="small text-muted" th:text="|Sử dụng ${#numbers.formatDecimal(dockUtilization, 1, 0)}%|"></div>
+        </div></div></div>
+        <div class="col-6 col-lg-2"><div class="card shadow-sm h-100"><div class="card-body">
+            <div class="text-muted small">Xe đang ở cửa / chờ đến</div>
+            <div class="stat text-warning" th:text="|${#lists.size(tripsAtDock)} / ${tripsScheduled}|"></div>
+        </div></div></div>
+        <div class="col-6 col-lg-2"><div class="card shadow-sm h-100"><div class="card-body">
+            <div class="text-muted small">Xe đến đúng giờ</div>
+            <div class="stat text-info" th:text="|${#numbers.formatDecimal(onTimeRate, 1, 0)}%|"></div>
+            <div class="small text-muted" th:text="|trên ${arrivedCount} lượt xe đến|"></div>
+        </div></div></div>
+        <div class="col-6 col-lg-2"><div class="card shadow-sm h-100"><div class="card-body">
+            <div class="text-muted small">Dwell time TB (giờ)</div>
+            <div class="stat text-primary" th:text="${#numbers.formatDecimal(avgDwell, 1, 1)}"></div>
+            <div class="small text-muted" th:text="|${shippedCount} pallet đã xuất|"></div>
+        </div></div></div>
+        <div class="col-6 col-lg-2"><div class="card shadow-sm h-100"><div class="card-body">
+            <div class="text-muted small">Ngoại lệ đang mở</div>
+            <div class="stat text-danger" th:text="${openIncidents}"></div>
+        </div></div></div>
+        <div class="col-6 col-lg-2"><div class="card shadow-sm h-100 border-danger"><div class="card-body">
+            <div class="text-muted small">Lần gán trùng bị chặn</div>
+            <div class="stat" th:text="${blockedDoubleAssign}"></div>
+        </div></div></div>
+    </div>
+
+    <div class="row g-4">
+        <div class="col-lg-7">
+            <div class="card shadow-sm mb-4">
+                <div class="card-header text-danger"><i class="bi bi-alarm"></i> Pallet nằm kho quá <span th:text="${dwellLimit}"></span> giờ</div>
+                <div class="table-responsive">
+                    <table class="table table-sm mb-0">
+                        <thead><tr><th>Pallet</th><th>Điểm đến</th><th>Trạng thái</th><th>Nhận lúc</th><th>Giờ trong kho</th></tr></thead>
+                        <tbody>
+                        <tr th:each="p : ${overdue}">
+                            <td><a th:href="@{/pallets/{id}(id=${p.id})}" th:text="${p.code}"></a></td>
+                            <td th:text="${p.destination}"></td>
+                            <td><span class="badge" th:classappend="${@ui.badge(p.status)}" th:text="${p.status.label}"></span></td>
+                            <td class="small" th:text="${@ui.dt(p.receivedAt)}"></td>
+                            <td class="fw-semibold text-danger" th:text="${#numbers.formatDecimal(p.dwellHours, 1, 1)}"></td>
+                        </tr>
+                        <tr th:if="${#lists.isEmpty(overdue)}"><td colspan="5" class="text-muted text-center">Không có pallet quá hạn</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="card shadow-sm">
+                <div class="card-header"><i class="bi bi-truck"></i> Xe đang ở cửa</div>
+                <table class="table table-sm mb-0">
+                    <thead><tr><th>Chuyến</th><th>Hướng</th><th>Xe</th><th>Cửa</th><th>Vào lúc</th></tr></thead>
+                    <tbody>
+                    <tr th:each="t : ${tripsAtDock}">
+                        <td><a th:href="@{/trips/{id}(id=${t.id})}" th:text="${t.code}"></a></td>
+                        <td th:text="${t.direction.label}"></td>
+                        <td th:text="${t.truckPlate}"></td>
+                        <td th:text="${t.dock.code}"></td>
+                        <td class="small" th:text="${@ui.dt(t.actualArrival)}"></td>
+                    </tr>
+                    <tr th:if="${#lists.isEmpty(tripsAtDock)}"><td colspan="5" class="text-muted text-center">Không có xe</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div class="col-lg-5">
+            <div class="card shadow-sm mb-4">
+                <div class="card-header">Pallet theo trạng thái</div>
+                <ul class="list-group list-group-flush">
+                    <li class="list-group-item d-flex justify-content-between" th:each="e : ${palletsByStatus}">
+                        <span><span class="badge" th:classappend="${@ui.badge(e.key)}" th:text="${e.key.label}"></span></span>
+                        <a th:href="@{/pallets(status=${e.key})}" class="fw-semibold" th:text="${e.value}"></a>
+                    </li>
+                </ul>
+            </div>
+            <div class="card shadow-sm">
+                <div class="card-header"><i class="bi bi-exclamation-triangle"></i> Ngoại lệ gần đây</div>
+                <ul class="list-group list-group-flush">
+                    <li class="list-group-item" th:each="i : ${recentIncidents}">
+                        <span class="badge me-1" th:classappend="${@ui.badge(i.status)}" th:text="${i.status.label}"></span>
+                        <strong th:text="${i.type.label}"></strong>
+                        <div class="small text-muted" th:text="${i.description}"></div>
+                    </li>
+                    <li class="list-group-item text-muted" th:if="${#lists.isEmpty(recentIncidents)}">Chưa có ngoại lệ</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</main>
+<th:block th:replace="~{fragments/layout :: scripts}"></th:block>
+</body>
+</html>

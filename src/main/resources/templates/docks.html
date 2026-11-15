@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head('Cửa nhập/xuất')}"></head>
+<body>
+<nav th:replace="~{fragments/layout :: nav('docks')}"></nav>
+<main class="container-fluid px-4 pb-5">
+    <div th:replace="~{fragments/layout :: alerts}"></div>
+    <div class="row g-4">
+        <div class="col-lg-4">
+            <div class="card shadow-sm">
+                <div class="card-header">Thêm cửa</div>
+                <div class="card-body">
+                    <form th:action="@{/docks}" method="post">
+                        <div class="mb-2"><label class="form-label">Mã cửa</label>
+                            <input name="code" class="form-control" placeholder="VD: IN-03" required></div>
+                        <div class="mb-3"><label class="form-label">Loại cửa</label>
+                            <select name="type" class="form-select">
+                                <option th:each="t : ${types}" th:value="${t}" th:text="|Cửa ${t.label}|"></option>
+                            </select></div>
+                        <button class="btn btn-primary w-100">Thêm</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-8">
+            <div class="card shadow-sm">
+                <div class="card-header">Danh sách cửa</div>
+                <table class="table table-hover mb-0">
+                    <thead><tr><th>Mã</th><th>Loại</th><th>Trạng thái</th><th></th></tr></thead>
+                    <tbody>
+                    <tr th:each="d : ${docks}">
+                        <td class="fw-semibold" th:text="${d.code}"></td>
+                        <td th:text="|Cửa ${d.type.label}|"></td>
+                        <td><span class="badge" th:classappend="${@ui.badge(d.status)}" th:text="${d.status.label}"></span></td>
+                        <td class="text-end">
+                            <form th:action="@{/docks/{id}/maintenance(id=${d.id})}" method="post" class="d-inline">
+                                <button class="btn btn-sm btn-outline-secondary" th:disabled="${d.status.name() == 'OCCUPIED'}"
+                                        th:text="${d.status.name() == 'MAINTENANCE'} ? 'Kết thúc bảo trì' : 'Bảo trì'"></button>
+                            </form>
+                        </td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</main>
+<th:block th:replace="~{fragments/layout :: scripts}"></th:block>
+</body>
+</html>

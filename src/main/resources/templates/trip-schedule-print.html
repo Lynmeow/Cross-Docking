@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title th:text="|Lịch xe ${#temporals.format(date, 'dd/MM/yyyy')}|">Lịch xe</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
+    <style>
+        body { font-family: Arial, sans-serif; font-size: 13px; color: #000; }
+        th { background: #f1f3f5 !important; white-space: nowrap; }
+        td.blank { min-width: 90px; }
+        .sign { height: 80px; }
+        @media print {
+            .no-print { display: none !important; }
+            @page { size: A4 landscape; margin: 12mm; }
+        }
+    </style>
+</head>
+<body class="p-4">
+
+<!-- Thanh công cụ (không in ra) -->
+<div class="no-print d-flex gap-2 align-items-center mb-3">
+    <form th:action="@{/trips/schedule-print}" method="get" class="d-flex gap-2 m-0">
+        <input type="date" name="date" class="form-control form-control-sm" th:value="${date}">
+        <button class="btn btn-sm btn-outline-secondary">Xem ngày khác</button>
+    </form>
+    <button class="btn btn-sm btn-primary" onclick="window.print()">In / Lưu PDF</button>
+    <a class="btn btn-sm btn-outline-secondary" th:href="@{/trips}">Quay lại</a>
+</div>
+
+<div class="d-flex justify-content-between">
+    <div><b>KHO TRUNG CHUYỂN CROSS-DOCK</b><br><span class="text-muted">Cổng quản lý kho trung chuyển</span></div>
+    <div class="text-end">In lúc: <span th:text="${@ui.dt(printedAt)}"></span><br>
+        Người lập: <span th:text="${me.displayName}"></span></div>
+</div>
+
+<h4 class="text-center my-4">LỊCH XE NGÀY <span th:text="${#temporals.format(date, 'dd/MM/yyyy')}"></span></h4>
+
+<table class="table table-bordered table-sm align-middle">
+    <thead>
+    <tr>
+        <th>#</th><th>Giờ đến</th><th>Giờ rời</th><th>Chuyến</th><th>Loại</th>
+        <th>Biển số</th><th>Nhà xe</th><th>Tài xế</th><th>Cửa</th><th>Điểm đến / Nơi đi</th>
+        <th>Giờ vào thực tế</th><th>Ghi chú</th>
+    </tr>
+    </thead>
+    <tbody>
+    <tr th:each="t, st : ${trips}">
+        <td th:text="${st.count}"></td>
+        <td th:text="${#temporals.format(t.scheduledArrival, 'HH:mm')}"></td>
+        <td th:text="${#temporals.format(t.scheduledDeparture, 'HH:mm')}"></td>
+        <td th:text="${t.code}"></td>
+        <td th:text="${t.direction.label}"></td>
+        <td class="fw-bold" th:text="${t.truckPlate}"></td>
+        <td th:text="${t.carrier}"></td>
+        <td th:text="${t.driverName} ?: ''"></td>
+        <td th:text="${t.dock.code}"></td>
+        <td th:text="${t.destination}"></td>
+        <td class="blank"></td>
+        <td class="blank"></td>
+    </tr>
+    <tr th:if="${#lists.isEmpty(trips)}"><td colspan="12" class="text-center text-muted py-3">Không có chuyến nào trong ngày này</td></tr>
+    </tbody>
+</table>
+<p>Tổng: <b th:text="${#lists.size(trips)}"></b> chuyến
+    (nhập: <b th:text="${#lists.size(trips.?[!outbound])}"></b>,
+    xuất: <b th:text="${#lists.size(trips.?[outbound])}"></b>)</p>
+
+<div class="row text-center mt-4">
+    <div class="col"><b>Người lập lịch</b><div class="sign"></div>(Ký, ghi rõ họ tên)</div>
+    <div class="col"><b>Bảo vệ cổng</b><div class="sign"></div>(Ký, ghi rõ họ tên)</div>
+</div>
+</body>
+</html>

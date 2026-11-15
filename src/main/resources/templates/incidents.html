@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head('Ngoại lệ chuyển tải')}"></head>
+<body>
+<nav th:replace="~{fragments/layout :: nav('incidents')}"></nav>
+<main class="container-fluid px-4 pb-5">
+    <div th:replace="~{fragments/layout :: alerts}"></div>
+
+    <div class="card shadow-sm mb-4">
+        <div class="card-header"><i class="bi bi-plus-circle"></i> Báo ngoại lệ chuyển tải</div>
+        <div class="card-body">
+            <form th:action="@{/incidents}" method="post" class="row g-2 align-items-end">
+                <div class="col-md-2"><label class="form-label">Loại</label>
+                    <select name="type" class="form-select">
+                        <option th:each="t : ${types}" th:value="${t}" th:text="${t.label}"></option></select></div>
+                <div class="col-md-2"><label class="form-label">Pallet</label>
+                    <select name="palletId" class="form-select">
+                        <option value="">— Không —</option>
+                        <option th:each="p : ${pallets}" th:value="${p.id}" th:text="|${p.code} (${p.status.label})|"></option></select></div>
+                <div class="col-md-2"><label class="form-label">Chuyến</label>
+                    <select name="tripId" class="form-select">
+                        <option value="">— Không —</option>
+                        <option th:each="t : ${trips}" th:value="${t.id}" th:text="${t.code}"></option></select></div>
+                <div class="col-md-4"><label class="form-label">Mô tả</label>
+                    <input name="description" class="form-control" required></div>
+                <div class="col-md-2">
+                    <div class="form-check mb-1"><input class="form-check-input" type="checkbox" name="hold" value="true" id="holdAll">
+                        <label class="form-check-label" for="holdAll">Tạm giữ pallet</label></div>
+                    <button class="btn btn-outline-danger w-100">Ghi nhận</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="card-header"><i class="bi bi-list-check"></i> Danh sách ngoại lệ</div>
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead><tr><th>#</th><th>Thời điểm</th><th>Loại</th><th>Pallet</th><th>Chuyến</th><th>Mô tả</th><th>Người báo</th><th>Trạng thái</th><th style="min-width: 260px">Xử lý</th></tr></thead>
+                <tbody>
+                <tr th:each="i : ${incidents}">
+                    <td th:text="${i.id}"></td>
+                    <td class="small text-nowrap" th:text="${@ui.dt(i.createdAt)}"></td>
+                    <td th:text="${i.type.label}"></td>
+                    <td><a th:if="${i.pallet != null}" th:href="@{/pallets/{id}(id=${i.pallet.id})}" th:text="${i.pallet.code}"></a></td>
+                    <td><a th:if="${i.trip != null}" th:href="@{/trips/{id}(id=${i.trip.id})}" th:text="${i.trip.code}"></a></td>
+                    <td class="small" th:text="${i.description}"></td>
+                    <td class="small" th:text="${i.reportedBy}"></td>
+                    <td><span class="badge" th:classappend="${@ui.badge(i.status)}" th:text="${i.status.label}"></span>
+                        <span class="badge text-bg-danger" th:if="${i.holdsPallet and i.status.name() == 'OPEN'}">Giữ pallet</span></td>
+                    <td>
+                        <form th:if="${isManager and i.status.name() == 'OPEN'}" th:action="@{/incidents/{id}/resolve(id=${i.id})}" method="post" class="input-group input-group-sm">
+                            <input name="resolution" class="form-control" placeholder="Cách xử lý" required>
+                            <button class="btn btn-primary">Đóng</button>
+                        </form>
+                        <span class="small text-muted" th:if="${!isManager and i.status.name() == 'OPEN'}">Chờ quản lý kho xử lý</span>
+                        <div class="small" th:if="${i.status.name() == 'RESOLVED'}">
+                            <span th:text="${i.resolution}"></span>
+                            <div class="text-muted" th:text="|${i.resolvedBy} · ${@ui.dt(i.resolvedAt)}|"></div>
+                        </div>
+                    </td>
+                </tr>
+                <tr th:if="${#lists.isEmpty(incidents)}"><td colspan="9" class="text-center text-muted">Chưa có ngoại lệ</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</main>
+<th:block th:replace="~{fragments/layout :: scripts}"></th:block>
+</body>
+</html>

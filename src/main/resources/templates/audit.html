@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head('Nhật ký hoạt động')}"></head>
+<body>
+<nav th:replace="~{fragments/layout :: nav('audit')}"></nav>
+<main class="container-fluid px-4 pb-5">
+    <div th:replace="~{fragments/layout :: alerts}"></div>
+    <h4 class="mb-3"><i class="bi bi-journal-text"></i> Nhật ký hoạt động
+        <small class="text-muted fs-6" th:if="${isManager}">(chỉ hiển thị nhật ký nghiệp vụ)</small></h4>
+
+    <form th:action="@{/audit}" method="get" class="row g-2 mb-3">
+        <div class="col-md-3">
+            <select name="category" class="form-select">
+                <option value="">— Tất cả nhóm —</option>
+                <option th:each="c : ${categories}" th:value="${c}" th:text="${c.label}" th:selected="${c == category}"></option>
+            </select>
+        </div>
+        <div class="col-md-3"><input name="username" class="form-control" placeholder="Username" th:value="${username}"></div>
+        <div class="col-md-2"><input type="date" name="from" class="form-control" th:value="${from}"></div>
+        <div class="col-md-2"><input type="date" name="to" class="form-control" th:value="${to}"></div>
+        <div class="col-md-2"><button class="btn btn-dark w-100"><i class="bi bi-funnel"></i> Lọc</button></div>
+    </form>
+
+    <div class="card shadow-sm">
+        <div class="table-responsive">
+            <table class="table table-sm table-hover mb-0">
+                <thead><tr><th>#</th><th>Thời điểm</th><th>Người thực hiện</th><th>Nhóm</th><th>Hành động</th><th>Đối tượng</th><th>Chi tiết (cũ → mới)</th><th>IP</th></tr></thead>
+                <tbody>
+                <tr th:each="a : ${logs.content}">
+                    <td th:text="${a.id}"></td>
+                    <td class="text-nowrap small" th:text="${@ui.dt(a.occurredAt)}"></td>
+                    <td><span th:text="${a.username}"></span> <span class="small text-muted" th:text="${a.userRole}"></span></td>
+                    <td class="small" th:text="${a.category.label}"></td>
+                    <td><code th:text="${a.actionName}"></code></td>
+                    <td class="small" th:text="${a.targetRef}"></td>
+                    <td class="small" th:text="${a.details}"></td>
+                    <td class="small text-muted" th:text="${a.ipAddress}"></td>
+                </tr>
+                <tr th:if="${logs.content.isEmpty()}"><td colspan="8" class="text-center text-muted">Không có bản ghi</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <nav class="mt-3" th:if="${logs.totalPages > 1}">
+        <ul class="pagination pagination-sm">
+            <li class="page-item" th:each="i : ${#numbers.sequence(0, logs.totalPages - 1)}" th:classappend="${i == logs.number} ? 'active'">
+                <a class="page-link" th:href="@{/audit(page=${i}, category=${category}, username=${username}, from=${from}, to=${to})}" th:text="${i + 1}"></a>
+            </li>
+        </ul>
+    </nav>
+    <p class="small text-muted">Nhật ký chỉ được ghi thêm, không thể sửa hoặc xóa từ hệ thống.</p>
+</main>
+<th:block th:replace="~{fragments/layout :: scripts}"></th:block>
+</body>
+</html>

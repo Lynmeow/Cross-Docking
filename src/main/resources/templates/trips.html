@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head('Lịch xe')}"></head>
+<body>
+<nav th:replace="~{fragments/layout :: nav('trips')}"></nav>
+<main class="container-fluid px-4 pb-5">
+    <div th:replace="~{fragments/layout :: alerts}"></div>
+
+    <div class="card shadow-sm mb-4">
+        <div class="card-header">Lên lịch chuyến xe</div>
+        <div class="card-body">
+            <form th:action="@{/trips}" method="post" class="row g-2">
+                <div class="col-md-2"><label class="form-label small">Mã chuyến</label><input name="code" class="form-control" placeholder="OUT-HN-002" required></div>
+                <div class="col-md-2"><label class="form-label small">Biển số</label><input name="truckPlate" class="form-control" required></div>
+                <div class="col-md-2"><label class="form-label small">Nhà vận chuyển</label><input name="carrier" class="form-control" required></div>
+                <div class="col-md-2"><label class="form-label small">Tài xế</label><input name="driverName" class="form-control"></div>
+                <div class="col-md-2"><label class="form-label small">Hướng</label>
+                    <select name="direction" class="form-select">
+                        <option th:each="d : ${directions}" th:value="${d}" th:text="${d.label}"></option>
+                    </select></div>
+                <div class="col-md-2"><label class="form-label small">Cửa</label>
+                    <select name="dockId" class="form-select" required>
+                        <option th:each="d : ${docks}" th:value="${d.id}" th:text="|${d.code} (${d.type.label} – ${d.status.label})|"></option>
+                    </select></div>
+                <div class="col-md-3"><label class="form-label small">Giờ đến (lịch)</label><input type="datetime-local" name="arrival" class="form-control" required></div>
+                <div class="col-md-3"><label class="form-label small">Giờ rời (lịch)</label><input type="datetime-local" name="departure" class="form-control" required></div>
+                <div class="col-md-3"><label class="form-label small">Điểm đến (xuất) / Nơi đi (nhập)</label><input name="destination" class="form-control"></div>
+                <div class="col-md-1"><label class="form-label small">Sức chứa</label><input type="number" name="capacity" value="20" min="1" class="form-control"></div>
+                <div class="col-md-2 d-flex align-items-end"><button class="btn btn-primary w-100"><i class="bi bi-calendar-plus"></i> Lên lịch</button></div>
+            </form>
+        </div>
+    </div>
+
+    <div class="card shadow-sm">
+                <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <span><i class="bi bi-list-ul"></i> Danh sách chuyến</span>
+            <form th:action="@{/trips/schedule-print}" method="get" target="_blank" class="d-flex gap-2 m-0">
+                <input type="date" name="date" class="form-control form-control-sm"
+                       th:value="${#temporals.format(T(java.time.LocalDate).now(), 'yyyy-MM-dd')}">
+                <button class="btn btn-sm btn-outline-primary text-nowrap"><i class="bi bi-printer"></i> In lịch xe</button>
+            </form>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead><tr><th>Chuyến</th><th>Hướng</th><th>Xe / Nhà xe</th><th>Cửa</th><th>Lịch</th><th>Điểm đến/đi</th><th>Trạng thái</th><th></th></tr></thead>
+                <tbody>
+                <tr th:each="t : ${trips}">
+                    <td class="fw-semibold" th:text="${t.code}"></td>
+                    <td th:text="${t.direction.label}"></td>
+                    <td><span th:text="${t.truckPlate}"></span><div class="small text-muted" th:text="${t.carrier}"></div></td>
+                    <td th:text="${t.dock.code}"></td>
+                    <td class="small text-nowrap" th:text="|${@ui.dt(t.scheduledArrival)} → ${@ui.dt(t.scheduledDeparture)}|"></td>
+                    <td th:text="${t.destination}"></td>
+                    <td><span class="badge" th:classappend="${@ui.badge(t.status)}" th:text="${t.status.label}"></span></td>
+                    <td class="text-end"><a class="btn btn-sm btn-outline-primary" th:href="@{/trips/{id}(id=${t.id})}">Chi tiết</a></td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</main>
+<th:block th:replace="~{fragments/layout :: scripts}"></th:block>
+</body>
+</html>
